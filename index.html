@@ -288,6 +288,10 @@ select.exsel{width:100%;padding:12px;border-radius:12px;border:1px solid var(--b
 .swb{width:40px;height:40px;border-radius:10px;border:none;background:var(--card);color:var(--text);cursor:pointer;flex-shrink:0;display:flex;align-items:center;justify-content:center}
 .swb svg.i{width:18px;height:18px}
 .swb.ph{visibility:hidden}
+.meal.nxm{border-color:var(--accent-ink)}
+.mtime{font-family:var(--head);font-size:22px;font-weight:600;color:var(--muted);min-width:58px}
+.meal.nxm .mtime{color:var(--accent-ink)}
+.mtag{font-family:-apple-system,Arial,sans-serif;font-size:10px;font-weight:800;letter-spacing:.4px;text-transform:uppercase;background:var(--accent);color:var(--on-accent);padding:3px 7px;border-radius:6px;margin-left:8px;vertical-align:4px}
 .meal-note{font-size:12px;color:var(--muted);padding:0 14px 12px;margin-top:-4px}
 .fnotes{margin:6px 16px 0;font-size:13px;color:var(--muted);line-height:1.6}
 .fnotes b{color:var(--text)}
@@ -702,7 +706,8 @@ function renderHome(){
     <button class="dt" onclick="showTab('food-scr')"><span class="dt-l">Питание · этап ${st}</span>
       <span class="dt-v">${(Math.round(t.k/10)*10).toLocaleString('ru-RU')}</span>
       <span class="dt-s">ккал · Б ${Math.round(t.p)} · Ж ${Math.round(t.f)} · У ${Math.round(t.c)}</span>
-      <span class="segs5">${meals.map(m=>`<i class="${eat[m.id]?'on':''}"></i>`).join('')}</span></button>
+      <span class="segs5">${meals.map(m=>`<i class="${eat[m.id]?'on':''}"></i>`).join('')}</span>
+      <span class="dt-a">${(()=>{const nm=nextMeal();return nm?nm.t+' · '+nm.name:'На сегодня всё';})()}</span></button>
     <button class="dt" onclick="showTab('body-scr')"><span class="dt-l">Вес тела</span>
       <span class="dt-v">${lw?fmtW(lw.kg):'—'} <small>кг</small></span>
       <span class="dt-s">${lm?'замеры от '+fmtD(lm.date):'замеров ещё нет'}</span>
@@ -1089,6 +1094,7 @@ const FOOD={
   kefir:  {n:'Кефир 1%',k:40,p:3,f:1,c:4,g:'dairy',ml:1},
   milk:   {n:'Молоко 2,5%',k:52,p:2.9,f:2.5,c:4.7,g:'milk',ml:1},
   kefirM: {n:'Кефир 1%',k:40,p:3,f:1,c:4,g:'milk',ml:1},
+  water:  {n:'Вода',k:0,p:0,f:0,c:0,g:'milk',ml:1},
   soyM:   {n:'Соевое молоко',k:45,p:3.3,f:1.8,c:4,g:'milk',ml:1},
   banana: {n:'Банан',k:89,p:1.1,f:0.3,c:22.8,g:'fruit',pc:120},
   apple:  {n:'Яблоки',k:52,p:0.3,f:0.2,c:14,g:'fruit',pc:170},
@@ -1113,17 +1119,24 @@ const STAGES=[
   {n:2,name:'Гейнер',tip:'Протеин в коктейле меняем на гейнер: +155 ккал без лишней еды.'},
   {n:3,name:'Гейнер+',tip:'В коктейль с гейнером добавляем 40 г овсянки и банан (в блендер).'},
 ];
+// время — под распорядок: работа 8–19, обед в 12, зал в 20, сон в 23–24
 function mealsFor(stage){return [
-  {id:'b',ic:'🍳',name:'Завтрак',items:[['oats',70],['milk',200],['egg',110],['banana',120]],note:'Овсянку вари на молоке'},
-  {id:'l',ic:'🍚',name:'Обед',items:[['rice',90],['chicken',130],['veg',200],['oil',15]]},
-  {id:'s',ic:'🥤',name:'Коктейль',items:SHAKES[stage-1],note:'В блендере. В день тренировки — сразу после зала'},
-  {id:'d',ic:'🍽',name:'Ужин',items:[['buck',70],['chicken',120],['veg',200],['oil',10]]},
-  {id:'e',ic:'🌙',name:'Вечер',items:[['skyr',250]],note:'За 1–2 часа до сна'},
+  {id:'b',t:'07:15',name:'Завтрак',items:[['oats',70],['milk',200],['egg',110]],note:'Дома. Овсянку вари на молоке'},
+  {id:'l',t:'12:00',name:'Обед',items:[['rice',90],['chicken',130],['veg',200],['oil',15]],note:'На работе — удобно готовить с вечера в контейнере, сразу на 2 дня'},
+  {id:'e',t:'16:00',name:'Перекус',items:[['skyr',250],['banana',120]],note:'На работе. Углеводы, чтобы хватило сил на зал'},
+  {id:'s',t:'18:30',name:'Коктейль',items:SHAKES[stage-1],note:stage===3?'Плотный коктейль: если тяжело перед залом — выпей после зала, а ужин сдвинь на 22:00':'На работе, в шейкере. За 1,5 часа до зала. Молоко можно заменить водой'},
+  {id:'d',t:'21:30',name:'Ужин',items:[['buck',70],['chicken',120],['veg',200],['oil',10]],note:'После зала. В день отдыха — в то же время'},
 ];}
+const toMin=s=>{const a=s.split(':').map(Number);return a[0]*60+a[1];};
+function nextMeal(){
+  const m=mealsFor(ST.food.stage),eat=eatToday(),now=new Date(),n=now.getHours()*60+now.getMinutes();
+  // первый несъеденный приём, время которого ещё не прошло больше чем на час
+  return m.find(x=>!eat[x.id]&&toMin(x.t)+60>=n)||null;
+}
 // равная калорийность при замене (овощи — тот же вес)
 function eqGrams(fromKey,g,toKey){
   const a=FOOD[fromKey],b=FOOD[toKey];
-  let x=a.g==='veg'?g:g*a.k/b.k;
+  let x=(a.g==='veg'||!b.k||!a.k)?g:g*a.k/b.k;
   if(b.pc)return Math.max(1,Math.round(x/b.pc))*b.pc;
   return Math.max(5,Math.round(x/(x>200?10:5))*(x>200?10:5));
 }
@@ -1179,7 +1192,7 @@ function setStage(n){ST.food.stage=Math.min(3,Math.max(1,n));save();renderFood()
 // ─── ЭКРАН ПИТАНИЯ ──────────────────────────────────────────────
 let foodOpen=false,bodyOpen=false;
 function renderFood(){
-  const st=ST.food.stage,t=dayTotals(st),eat=eatToday(),meals=mealsFor(st);
+  const st=ST.food.stage,t=dayTotals(st),eat=eatToday(),meals=mealsFor(st),nm=nextMeal(),_d=new Date(),curMin=_d.getHours()*60+_d.getMinutes();
   const nEat=meals.filter(m=>eat[m.id]).length;
   let h=`<div class="sec">Норма на день</div>
   <div class="panel">
@@ -1203,8 +1216,9 @@ function renderFood(){
         <div class="fk">${Math.round(x.k)} ккал</div>
         <button class="swb${can?'':' ph'}" onclick="openSwap('${m.id}','${r.orig}',${r.og})" aria-label="Заменить продукт"><svg class="i"><use href="#i-swap"/></svg></button></div>`;
     }).join('');
-    h+=`<div class="meal${eat[m.id]?' ate':''}">
-      <div class="meal-h"><div><h3>${m.name}</h3><p>${Math.round(mk)} ккал</p></div>
+    const nx=nm&&nm.id===m.id,nowM=nx&&Math.abs(toMin(m.t)-curMin)<=45;
+    h+=`<div class="meal${eat[m.id]?' ate':''}${nx?' nxm':''}">
+      <div class="meal-h"><div class="mtime">${m.t}</div><div><h3>${m.name}${nx?`<span class="mtag">${nowM?'Сейчас':'Далее'}</span>`:''}</h3><p>${Math.round(mk)} ккал</p></div>
       <button class="ate-btn" onclick="toggleAte('${m.id}')">${eat[m.id]?'✓ Съел':'Съел'}</button></div>
       ${m.note?`<div class="meal-note">${m.note}</div>`:''}${rows}</div>`;
   });
